@@ -1,2 +1,2 @@
 # closestgeoname
-Createa a GeoName local database for querying the nearest city
+Creates a GeoName local database for querying the nearest city
