@@ -1,12 +1,5 @@
 #!/usr/bin/python3
 
-# This script will import a cities database from GeoNames and generate a local
-# SQLite/Spatialite database for querying placenames nearest to a lat/long point.
-# The column schema follows that which is given on
-# http://download.geonames.org/export/dump/ as of 07/01/2020. As this is the same for
-# all datasets, whichever chosen should function the same way, depending on the needs
-# of your database
-
 import pandas as pd
 import sqlite3
 import os
