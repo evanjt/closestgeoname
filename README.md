@@ -27,4 +27,4 @@ Querying coordinates:
 
 # License 
 
-MIT/
+MIT
