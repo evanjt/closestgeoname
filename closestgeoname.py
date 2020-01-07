@@ -32,7 +32,7 @@ COLNAMES = ['Geonameid',
             'Timezone',
             'ModificationDate']
 DBFILENAME = 'geonames.sqlite'
-MIN_QUERY_DIST = 0.000001 # Metres
+MIN_QUERY_DIST = 0.1 # Metres
 
 def import_dump(filename, colnames, encoding='utf-8', delimiter='\t'):
     MULTIPLIER = 1.4 # DB size versus original text file
