@@ -12,48 +12,68 @@ from shapely.geometry import Point
 
 # Schema of geonames databases from
 # as of 07/01/2020
-COLNAMES = ['Geonameid',
-            'Name',
-            'Asciiname',
-            'Alternatenames',
-            'Latitude',
-            'Longitude',
-            'FeatureClass',
-            'FeatureCode',
-            'CountryCode',
-            'Cc2',
-            'Admin1Code',
-            'Admin2Code',
-            'Admin3Code',
-            'Admin4Code',
-            'Population',
-            'Elevation',
-            'Dem',
-            'Timezone',
-            'ModificationDate']
+CITY_COLNAMES = ['Geonameid',
+                'Name',
+                'Asciiname',
+                'Alternatenames',
+                'Latitude',
+                'Longitude',
+                'FeatureClass',
+                'FeatureCode',
+                'CountryCode',
+                'Cc2',
+                'Admin1Code',
+                'Admin2Code',
+                'Admin3Code',
+                'Admin4Code',
+                'Population',
+                'Elevation',
+                'Dem',
+                'Timezone',
+                'ModificationDate']
+STATE_COLNAMES = ["AdCode", "State", "StateClean", "ID"]
 DBFILENAME = 'geonames.sqlite'
 MIN_QUERY_DIST = 0.1 # Metres
 
-def import_dump(filename, colnames, encoding='utf-8', delimiter='\t'):
+def import_dump(city_filename, admin_filename, country_filename, city_colnames, state_colnames, encoding='utf-8', delimiter='\t'):
     MULTIPLIER = 1.4 # DB size versus original text file
-    filesize = os.stat(filename).st_size/1048576 # In MB
+    filesize = os.stat(city_filename).st_size/1048576 # In MB
     print("Initial filesize\t{} MB\nExpected database size\t{} MB\n".format(
                             round(filesize,2), round(filesize*MULTIPLIER,2)))
 
-    df = pd.read_csv(filename, delimiter=delimiter, encoding=encoding,
-                     header=None, names=colnames, low_memory=False)
+    df = pd.read_csv(city_filename, delimiter=delimiter, encoding=encoding,
+                     header=None, names=city_colnames, low_memory=False)
 
     # Filter only the necessary columns
-    return df[['Geonameid', 'Name', 'Latitude', 'Longitude', 'CountryCode']]
+    cities = df[['Geonameid', 'Name', 'Latitude', 'Longitude', 'Admin1Code', 'CountryCode']]
+
+    # Admin 1 table (commonly the state names)
+    states = pd.read_csv(admin_filename, encoding='utf-8', delimiter='\t', header=None, names=state_colnames)
+
+    # Split the Country/Admin code by the separating decimal
+    splitdf = states['AdCode'].str.split(".", expand=True)
+    states['CountryID'] = splitdf[0]
+    states['AdminCode'] = splitdf[1]
+    states = states[['State', 'CountryID', 'AdminCode']]
+
+    # This file is a bit messier, skip the first 51 rows, only use columns 0 and 4
+    countries = pd.read_csv(country_filename, encoding='utf-8', delimiter='\t', header=None, skiprows=51)
+    countries = countries[[0, 4]]
+    countries.columns = ['ISO', 'Country']
+    states = pd.merge(states, countries, left_on='CountryID', right_on='ISO', how='left')
+
+    return cities, states, countries
 
 def query_db_size(db_path):
     print("Database size {} MB\n".format(round(os.stat(db_path).st_size/1048576, 2)))
 
-def generate_db(db_path, dataframe):
+def generate_db(db_path, cities, states, countries):
     with sqlite3.connect(db_path) as conn:
         # Use pandas SQL export to generate SQLite DB
         print("Populating database", end='... ')
-        dataframe.to_sql('cities', conn, if_exists='replace', index=False)
+        cities.to_sql('cities', conn, if_exists='replace', index=False)
+        states.to_sql('states', conn, if_exists='replace', index=False)
+        countries.to_sql('countries', conn, if_exists='replace', index=False)
         print("Done")
         query_db_size(db_path)
 
@@ -121,7 +141,7 @@ def query_closest_city(db_path, latitude, longitude, epsg=4326, query_buffer_dis
             # Query database with spatial index
             cur.execute(
                 """
-                select Name, CountryCode from (
+                select a.Name, b.State, b.Country from (
                     select *, distance(geom, makepoint(?, ?, ?)) dist
                     from cities
                     where rowid in (
@@ -133,12 +153,16 @@ def query_closest_city(db_path, latitude, longitude, epsg=4326, query_buffer_dis
                     )
                     order by dist
                     limit 1
-                );
+                ) a,
+                states b
+                where a.CountryCode == b.ISO
+                and a.Admin1Code == b.AdminCode;
                 """, query_tuple
             )
             row = cur.fetchone()
 
         query_buffer_distance *= 2
+
     return row
 
 # Reporthook function to show file download progress. Code from
@@ -156,7 +180,7 @@ def reporthook(count, block_size, total_size):
                     (percent, progress_size / (1024 * 1024), speed, duration))
     sys.stdout.flush()
 
-def download_dataset(colnames, db_path):
+def download_dataset(city_colnames, state_colnames, db_path):
     options = [
     ("http://download.geonames.org/export/dump/allCountries.zip",
      "all countries combined in one file (HUGE! > 1.2 GB)"),
@@ -175,16 +199,19 @@ def download_dataset(colnames, db_path):
         print("[{}] {}:\t{}".format(id, option[0].split('/')[-1], option[1]))
     choice = int(input("Choose which file to download: "))
     urllib.request.urlretrieve(options[choice][0], "rawdata.zip", reporthook)
+    urllib.request.urlretrieve("http://download.geonames.org/export/dump/countryInfo.txt", "countryInfo.txt", reporthook)
+    urllib.request.urlretrieve("http://download.geonames.org/export/dump/admin1CodesASCII.txt", "admin1CodesASCII.txt", reporthook)
+
     extracted_txt = extract_zip('rawdata.zip')
 
     print()
     # Create database
-    df = import_dump(extracted_txt, colnames)
-    generate_db(db_path, df)
+    cities, states, countries = import_dump(extracted_txt, "admin1CodesASCII.txt", "countryInfo.txt", city_colnames, state_colnames)
+    generate_db(db_path, cities, states, countries)
 
     # Remove downloaded files
     os.remove("rawdata.zip")
-    os.remove(extracted_txt)
+    #os.remove(extracted_txt)
     print("Success")
 
 def extract_zip(filename):
@@ -209,10 +236,11 @@ def main():
 
         result = query_closest_city(args.database, args.latitude, args.longitude,
                                         query_buffer_distance=MIN_QUERY_DIST)
-        print("{}, {}".format(result[0], result[1]))
+        #print(result)
+        print("{}, {}, {}".format(result[0], result[1], result[2]))
     else:
         print("GeoNames database", DBFILENAME, "does not exist. Choose an option")
-        download_dataset(COLNAMES, DBFILENAME)
+        download_dataset(CITY_COLNAMES, STATE_COLNAMES, DBFILENAME)
 
 if __name__ == "__main__":
     main()
