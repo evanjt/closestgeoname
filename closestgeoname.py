@@ -39,6 +39,7 @@ COLNAMES = ['Geonameid',
             'Timezone',
             'ModificationDate']
 DBFILENAME = 'geonames.sqlite'
+MIN_QUERY_DIST = 0.000001 # Metres
 
 def import_dump(filename, colnames, encoding='utf-8', delimiter='\t'):
     MULTIPLIER = 1.4 # DB size versus original text file
@@ -99,39 +100,52 @@ def generate_db(db_path, dataframe):
         print("Done")
         query_db_size(db_path)
 
-def query_closest_city(db_path, latitude, longitude, epsg=4326, query_buffer_distance=0.5):
-    # Form tuple to represent values missing in SQL query
-    query_tuple = (longitude,
-                   latitude,
-                   epsg,
-                   longitude,
-                   latitude,
-                   epsg,
-                   query_buffer_distance)
-    with sqlite3.connect(db_path) as conn:
-        conn.enable_load_extension(True)
-        conn.load_extension("mod_spatialite")
-        cur = conn.cursor()
+def query_closest_city(db_path, latitude, longitude, epsg=4326, query_buffer_distance=0.00001):
+    # Start the buffer size for searching nearest points at a low number for speed,
+    # but keep iterating (doubling distance in size) until somewhere is found.
+    # Hence, this is faster for huge datasets as less points are considered in the spatial
+    # query, but slower for small datasets as more iterations will need to occur if no point
+    # exists
+    row = None
+    while row is None:
+        # Prevent an infinite loop
+        if query_buffer_distance > 12756 * 1000: # 12,756 km Longest distance on earth
+            sys.exit("Distance more than length of earth. Never going to find this point")
 
-        # Query database with spatial index
-        cur.execute(
-            """
-            select Name, CountryCode from (
-                select *, distance(geom, makepoint(?, ?, ?)) dist
-                from cities
-                where rowid in (
-                    select rowid
-                    from spatialindex
-                    where f_table_name = 'cities'
-                    and f_geometry_column = 'geom'
-                    and search_frame = buffer(makepoint(?, ?, ?), ?)
-                )
-                order by dist
-                limit 1
-            );
-            """, query_tuple
-        )
-        row = cur.fetchone()
+        # Form tuple to represent values missing in SQL query
+        query_tuple = (longitude,
+                    latitude,
+                    epsg,
+                    longitude,
+                    latitude,
+                    epsg,
+                    query_buffer_distance)
+        with sqlite3.connect(db_path) as conn:
+            conn.enable_load_extension(True)
+            conn.load_extension("mod_spatialite")
+            cur = conn.cursor()
+
+            # Query database with spatial index
+            cur.execute(
+                """
+                select Name, CountryCode from (
+                    select *, distance(geom, makepoint(?, ?, ?)) dist
+                    from cities
+                    where rowid in (
+                        select rowid
+                        from spatialindex
+                        where f_table_name = 'cities'
+                        and f_geometry_column = 'geom'
+                        and search_frame = buffer(makepoint(?, ?, ?), ?)
+                    )
+                    order by dist
+                    limit 1
+                );
+                """, query_tuple
+            )
+            row = cur.fetchone()
+
+        query_buffer_distance *= 2
     return row
 
 # Reporthook function to show file download progress. Code from
@@ -151,6 +165,8 @@ def reporthook(count, block_size, total_size):
 
 def download_dataset(colnames, db_path):
     options = [
+    ("http://download.geonames.org/export/dump/allCountries.zip",
+     "all countries combined in one file (HUGE! > 1.2 GB)"),
     ("http://download.geonames.org/export/dump/cities500.zip",
      "all cities with a population > 500 or seats of adm div down to PPLA4 (ca 185.000)"),
     ("http://download.geonames.org/export/dump/cities1000.zip",
@@ -159,8 +175,7 @@ def download_dataset(colnames, db_path):
      "all cities with a population > 5000 or PPLA (ca 50.000)"),
     ("http://download.geonames.org/export/dump/cities15000.zip",
      "all cities with a population > 15000 or capitals (ca 25.000)"),
-    ("http://download.geonames.org/export/dump/allCountries.zip",
-     "all countries combined in one file")]
+    ]
 
     # Let user choose which file to download
     for id, option in enumerate(options):
@@ -169,6 +184,7 @@ def download_dataset(colnames, db_path):
     urllib.request.urlretrieve(options[choice][0], "rawdata.zip", reporthook)
     extracted_txt = extract_zip('rawdata.zip')
 
+    print()
     # Create database
     df = import_dump(extracted_txt, colnames)
     generate_db(db_path, df)
@@ -197,9 +213,9 @@ def main():
         parser.add_argument("longitude", type=float, help="X coordinate (Longitude)")
         parser.add_argument("latitude", type=float, help="Y coordinate (Latitude)")
         args = parser.parse_args()
-        #print(args)
-        #print(args.database)
-        result = query_closest_city(args.database, args.latitude, args.longitude)
+
+        result = query_closest_city(args.database, args.latitude, args.longitude,
+                                        query_buffer_distance=MIN_QUERY_DIST)
         print("{}, {}".format(result[0], result[1]))
     else:
         print("GeoNames database", DBFILENAME, "does not exist. Choose an option")
