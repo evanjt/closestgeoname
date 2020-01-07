@@ -11,6 +11,10 @@ import pandas as pd
 import sqlite3
 import os
 import argparse
+import urllib.request
+import time
+import sys
+from zipfile import ZipFile
 from shapely.geometry import Point
 
 # Schema of geonames databases from
@@ -34,6 +38,7 @@ COLNAMES = ['Geonameid',
             'Dem',
             'Timezone',
             'ModificationDate']
+DBFILENAME = 'geonames.sqlite'
 
 def import_dump(filename, colnames, encoding='utf-8', delimiter='\t'):
     MULTIPLIER = 1.4 # DB size versus original text file
@@ -129,17 +134,76 @@ def query_closest_city(db_path, latitude, longitude, epsg=4326, query_buffer_dis
         row = cur.fetchone()
     return row
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--database", type=str, help="Set the file for database (default: geonames.sqlite)", default="geonames.sqlite")
-    parser.add_argument("longitude", type=float, help="X coordinate (Longitude)")
-    parser.add_argument("latitude", type=float, help="Y coordinate (Latitude)")
-    args = parser.parse_args()
-    print(args)
-    print(args.database)
+# Reporthook function to show file download progress. Code from
+# https://blog.shichao.io/2012/10/04/progress_speed_indicator_for_urlretrieve_in_python.html
+def reporthook(count, block_size, total_size):
+    global start_time
+    if count == 0:
+        start_time = time.time()
+        return
+    duration = time.time() - start_time
+    progress_size = int(count * block_size)
+    speed = int(progress_size / (1024 * duration))
+    percent = int(count * block_size * 100 / total_size)
+    sys.stdout.write("\r...%d%%, %d MB, %d KB/s, %d seconds passed" %
+                    (percent, progress_size / (1024 * 1024), speed, duration))
+    sys.stdout.flush()
 
-    result = query_closest_city(args.database, args.latitude, args.longitude)
-    print("{}, {}".format(result[0], result[1]))
+def download_dataset(colnames, db_path):
+    options = [
+    ("http://download.geonames.org/export/dump/cities500.zip",
+     "all cities with a population > 500 or seats of adm div down to PPLA4 (ca 185.000)"),
+    ("http://download.geonames.org/export/dump/cities1000.zip",
+     "all cities with a population > 1000 or seats of adm div down to PPLA3 (ca 130.000)"),
+    ("http://download.geonames.org/export/dump/cities5000.zip",
+     "all cities with a population > 5000 or PPLA (ca 50.000)"),
+    ("http://download.geonames.org/export/dump/cities15000.zip",
+     "all cities with a population > 15000 or capitals (ca 25.000)"),
+    ("http://download.geonames.org/export/dump/allCountries.zip",
+     "all countries combined in one file")]
+
+    # Let user choose which file to download
+    for id, option in enumerate(options):
+        print("[{}] {}:\t{}".format(id, option[0].split('/')[-1], option[1]))
+    choice = int(input("Choose which file to download: "))
+    urllib.request.urlretrieve(options[choice][0], "rawdata.zip", reporthook)
+    extracted_txt = extract_zip('rawdata.zip')
+
+    # Create database
+    df = import_dump(extracted_txt, colnames)
+    generate_db(db_path, df)
+
+    # Remove downloaded files
+    os.remove("rawdata.zip")
+    os.remove(extracted_txt)
+    print("Success")
+
+def extract_zip(filename):
+    with ZipFile('rawdata.zip', 'r') as zipObj:
+        files = zipObj.namelist()
+        # Iterate over the file names
+        for fileName in files:
+            # Check filename endswith csv
+            if fileName.endswith('.txt'):
+                # Extract a single file from zip
+                zipObj.extract(fileName)
+                filename = fileName
+    return filename
+
+def main():
+    if os.path.exists(os.path.join(os.getcwd(), DBFILENAME)):
+        parser = argparse.ArgumentParser()
+        parser.add_argument("--database", type=str, help="Set the file for database (default: geonames.sqlite)", default="geonames.sqlite")
+        parser.add_argument("longitude", type=float, help="X coordinate (Longitude)")
+        parser.add_argument("latitude", type=float, help="Y coordinate (Latitude)")
+        args = parser.parse_args()
+        #print(args)
+        #print(args.database)
+        result = query_closest_city(args.database, args.latitude, args.longitude)
+        print("{}, {}".format(result[0], result[1]))
+    else:
+        print("GeoNames database", DBFILENAME, "does not exist. Choose an option")
+        download_dataset(COLNAMES, DBFILENAME)
 
 if __name__ == "__main__":
     main()
