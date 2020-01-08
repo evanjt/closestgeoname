@@ -8,7 +8,6 @@ import urllib.request
 import time
 import sys
 from zipfile import ZipFile
-from shapely.geometry import Point
 
 # Schema of geonames databases from
 # as of 07/01/2020
@@ -113,7 +112,7 @@ def generate_db(db_path, cities, states, countries):
         print("Done")
         query_db_size(db_path)
 
-def query_closest_city(db_path, latitude, longitude, epsg=4326, query_buffer_distance=0.00001):
+def query_closest_city(db_path, latitude, longitude, epsg=4326, query_buffer_distance=0.1):
     # Start the buffer size for searching nearest points at a low number for speed,
     # but keep iterating (doubling distance in size) until somewhere is found.
     # Hence, this is faster for huge datasets as less points are considered in the spatial
@@ -123,7 +122,8 @@ def query_closest_city(db_path, latitude, longitude, epsg=4326, query_buffer_dis
     while row is None:
         # Prevent an infinite loop
         if query_buffer_distance > 12756 * 1000: # 12,756 km Longest distance on earth
-            sys.exit("Distance more than length of earth. Never going to find this point")
+            print("Distance more than length of earth. Never going to find this point")
+            return None
 
         # Form tuple to represent values missing in SQL query
         query_tuple = (longitude,
@@ -211,7 +211,9 @@ def download_dataset(city_colnames, state_colnames, db_path):
 
     # Remove downloaded files
     os.remove("rawdata.zip")
-    #os.remove(extracted_txt)
+    os.remove(extracted_txt)
+    os.remove("countryInfo.txt")
+    os.remove("admin1CodesASCII.txt")
     print("Success")
 
 def extract_zip(filename):
@@ -236,7 +238,6 @@ def main():
 
         result = query_closest_city(args.database, args.latitude, args.longitude,
                                         query_buffer_distance=MIN_QUERY_DIST)
-        #print(result)
         print("{}, {}, {}".format(result[0], result[1], result[2]))
     else:
         print("GeoNames database", DBFILENAME, "does not exist. Choose an option")
