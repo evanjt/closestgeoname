@@ -197,7 +197,13 @@ def download_dataset(city_colnames, state_colnames, db_path):
     # Let user choose which file to download
     for id, option in enumerate(options):
         print("[{}] {}:\t{}".format(id, option[0].split('/')[-1], option[1]))
-    choice = int(input("Choose which file to download: "))
+    try:
+        choice = int(input("Choose which file to download: "))
+        if choice < 0 or choice >= len(options):
+            exit("Error: Choose between {} and {}".format(0, len(options)-1))
+    except ValueError:
+        exit('Error: Not an integer')
+
     urllib.request.urlretrieve(options[choice][0], "rawdata.zip", reporthook)
     urllib.request.urlretrieve("http://download.geonames.org/export/dump/countryInfo.txt", "countryInfo.txt", reporthook)
     urllib.request.urlretrieve("http://download.geonames.org/export/dump/admin1CodesASCII.txt", "admin1CodesASCII.txt", reporthook)
