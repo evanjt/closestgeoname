@@ -3,7 +3,19 @@ This program was written to avoid harrassing the API of a poor online server whe
 
 The program downloads a placename database from [GeoNames](http://download.geonames.org/export/dump/) and generates an SQLite database. SQLite's SpatiaLite addon is then used to generate a spatial index for extremely fast querying to return the closest place name for a given latitude and longitude
 
-# Usage
+## Setup
+
+Dependencies can be installed by either *pip* or *conda*
+
+### pip
+
+`pip install -r requirements.txt`
+
+### conda
+
+ `conda install --file requirements.txt`
+
+## Usage
 
 On first run, if there is no *geonames.sqlite* file in the directory, it will prompt you to download from a choice of hardcoded links to the GeoNames server. 
 
@@ -11,7 +23,7 @@ On first run, if there is no *geonames.sqlite* file in the directory, it will pr
 
 The script's primary purpose is to offer functionality to other python programs, but can be used from the command line as seen in the examples below.
 
-# Examples
+## Examples
 
 On first run:
 
@@ -25,6 +37,6 @@ Querying coordinates:
 
 ![image-20200107200652018](assets/image-20200107200652018.png)
 
-# License 
+## License 
 
 MIT
