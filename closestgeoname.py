@@ -112,7 +112,7 @@ def generate_db(db_path, cities, states, countries):
         print("Done")
         query_db_size(db_path)
 
-def query_closest_city(db_path=DBFILENAME, latitude, longitude, epsg=4326, query_buffer_distance=0.1):
+def query_closest_city(db_path, latitude, longitude, epsg=4326, query_buffer_distance=0.1):
     # Start the buffer size for searching nearest points at a low number for speed,
     # but keep iterating (doubling distance in size) until somewhere is found.
     # Hence, this is faster for huge datasets as less points are considered in the spatial
@@ -251,7 +251,7 @@ def main():
     dbpath = os.path.join(DBFILENAME)
     if check_db_existance(dbpath, CITY_COLNAMES, STATE_COLNAMES):
         parser = argparse.ArgumentParser()
-        parser.add_argument("--database", type=str, help="Set the file for database (default: geonames.sqlite)", default="geonames.sqlite")
+        parser.add_argument("--database", type=str, help="Set the file for database (default: {})".format(DBFILENAME), default=DBFILENAME)
         parser.add_argument("longitude", type=float, help="X coordinate (Longitude)")
         parser.add_argument("latitude", type=float, help="Y coordinate (Latitude)")
         args = parser.parse_args()
