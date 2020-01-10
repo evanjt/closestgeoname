@@ -31,7 +31,7 @@ CITY_COLNAMES = ['Geonameid',
                 'Timezone',
                 'ModificationDate']
 STATE_COLNAMES = ["AdCode", "State", "StateClean", "ID"]
-DBFILENAME = 'geonames.sqlite'
+DBFILENAME = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geonames.sqlite')
 MIN_QUERY_DIST = 0.1 # Metres
 
 def import_dump(city_filename, admin_filename, country_filename, city_colnames, state_colnames, encoding='utf-8', delimiter='\t'):
@@ -112,7 +112,7 @@ def generate_db(db_path, cities, states, countries):
         print("Done")
         query_db_size(db_path)
 
-def query_closest_city(db_path, latitude, longitude, epsg=4326, query_buffer_distance=0.1):
+def query_closest_city(db_path=DBFILENAME, latitude, longitude, epsg=4326, query_buffer_distance=0.1):
     # Start the buffer size for searching nearest points at a low number for speed,
     # but keep iterating (doubling distance in size) until somewhere is found.
     # Hence, this is faster for huge datasets as less points are considered in the spatial
@@ -248,7 +248,7 @@ def check_db_existance(dbfilename, columns_city, columns_state):
 
 
 def main():
-    dbpath = os.path.join(os.getcwd(), DBFILENAME)
+    dbpath = os.path.join(DBFILENAME)
     if check_db_existance(dbpath, CITY_COLNAMES, STATE_COLNAMES):
         parser = argparse.ArgumentParser()
         parser.add_argument("--database", type=str, help="Set the file for database (default: geonames.sqlite)", default="geonames.sqlite")
