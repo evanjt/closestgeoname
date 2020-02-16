@@ -6,18 +6,17 @@ import urllib
 import os
 import requests
 
-FILE_ZIPNAME = "rawdata.zip"
-FILE_ADMINCODES = "admin1CodesASCII.txt"
-FILE_COUNTRYINFO = "countryInfo.txt"
-
 class TestSchema(unittest.TestCase):
+    def setUp(self):
+        self.countryinfo = "countryInfo.txt"
+
     # Test the schema of the country info file by asserting the first line considered is at Andorra
     def test_first_country(self):
-        urllib.request.urlretrieve("http://download.geonames.org/export/dump/countryInfo.txt", FILE_COUNTRYINFO)
+        urllib.request.urlretrieve("http://download.geonames.org/export/dump/countryInfo.txt", self.countryinfo)
 
-        with open(FILE_COUNTRYINFO) as country_file:
+        with open(self.countryinfo) as country_file:
             country_info = country_file.readlines()
-        os.remove(FILE_COUNTRYINFO)
+        os.remove(self.countryinfo)
 
         # First country in file should be Andorra(AD) on on line 51
         country_file_L51 = country_info[51].split("\t")
@@ -39,7 +38,7 @@ class TestDatabase(unittest.TestCase):
 
         # Download files
         closestgeoname.fetch_data(closestgeoname.DBNAMES_LINKS,
-                                  4,
+                                  1,
                                   self.zipname,
                                   self.admincodes,
                                   self.countryinfo)
@@ -70,13 +69,11 @@ class TestDatabase(unittest.TestCase):
         os.remove(self.unzipped_filename)
         os.remove(self.db_path)
 
-
     def test_some_cities(self):
         locations = [(-37.8136, 144.9631, "Melbourne", "Victoria", "Australia"),
                      (-33.4489, -70.6693, "Santiago", "Santiago Metropolitan", "Chile"),
                      (51.5074, -0.1278, "London", "England", "United Kingdom"),
                      (35.6762, 139.6503, "Tokyo", "Tokyo", "Japan"),
-                     (47.3769, 8.5417, "Zürich", "Zurich", "Switzerland"),
                      (-31.9505, 115.8605, "Perth", "Western Australia", "Australia"),
                      (40.7128, -74.0060, "New York City", "New York", "United States")]
         for location in locations:
