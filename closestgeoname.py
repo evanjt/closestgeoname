@@ -193,10 +193,16 @@ def reporthook(count, block_size, total_size):
                     (percent, progress_size / (1024 * 1024), speed, duration))
     sys.stdout.flush()
 
+def fetch_data(options, choiceid, zipname, admincodes, countryinfo):
+    urllib.request.urlretrieve(options[choiceid][0], zipname, reporthook)
+    urllib.request.urlretrieve("http://download.geonames.org/export/dump/countryInfo.txt", "countryInfo.txt", reporthook)
+    urllib.request.urlretrieve("http://download.geonames.org/export/dump/admin1CodesASCII.txt", "admin1CodesASCII.txt", reporthook)
+
+
 # Fetches the dataset from the geonames repository and generates the db
 def download_dataset(city_colnames, state_colnames, db_path, options, choice=None):
     # If not explicitly defined in function, let the user choose which file to download
-    if (choice is not None) or (choice < 1) or (choice > 4):
+    if (choice is None) or (choice < 1) or (choice > 4):
         for id, option in enumerate(options):
             print("[{}] {}:\t{}".format(id, option[0].split('/')[-1], option[1]))
         try:
@@ -206,22 +212,22 @@ def download_dataset(city_colnames, state_colnames, db_path, options, choice=Non
         except ValueError:
             exit('Error: Not an integer')
 
-    urllib.request.urlretrieve(options[choice][0], "rawdata.zip", reporthook)
-    urllib.request.urlretrieve("http://download.geonames.org/export/dump/countryInfo.txt", "countryInfo.txt", reporthook)
-    urllib.request.urlretrieve("http://download.geonames.org/export/dump/admin1CodesASCII.txt", "admin1CodesASCII.txt", reporthook)
-
-    extracted_txt = extract_zip('rawdata.zip')
+    zipname = "rawdata.zip"
+    admincodes = "admin1CodesASCII.txt"
+    countryinfo = "countryInfo.txt"
+    fetch_data(options, choice, zipname, admincodes, countryinfo)
+    extracted_txt = extract_zip(zipname)
 
     print()
     # Create database
-    cities, states, countries = import_dump(extracted_txt, "admin1CodesASCII.txt", "countryInfo.txt", city_colnames, state_colnames)
+    cities, states, countries = import_dump(extracted_txt, admincodes, countryinfo, city_colnames, state_colnames)
     generate_db(db_path, cities, states, countries)
 
     # Remove downloaded files
-    os.remove("rawdata.zip")
+    os.remove(zipname)
     os.remove(extracted_txt)
-    os.remove("countryInfo.txt")
-    os.remove("admin1CodesASCII.txt")
+    os.remove(countryinfo)
+    os.remove(admincodes)
     print("Success")
 
 def extract_zip(filename):
@@ -248,8 +254,7 @@ def check_db_existance(dbfilename, columns_city, columns_state, options):
         return True
 
 def main():
-    dbpath = os.path.join(DBFILENAME)
-    if check_db_existance(dbpath, CITY_COLNAMES, STATE_COLNAMES, DBNAMES_LINKS):
+    if check_db_existance(DBFILENAME, CITY_COLNAMES, STATE_COLNAMES, DBNAMES_LINKS):
         parser = argparse.ArgumentParser()
         parser.add_argument("--database", type=str, help="Set the file for database (default: {})".format(DBFILENAME), default=DBFILENAME)
         parser.add_argument("longitude", type=float, help="X coordinate (Longitude)")
