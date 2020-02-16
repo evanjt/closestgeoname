@@ -30,12 +30,24 @@ CITY_COLNAMES = ['Geonameid',
                 'Dem',
                 'Timezone',
                 'ModificationDate']
-STATE_COLNAMES = ["AdCode", "State", "StateClean", "ID"]
 DBFILENAME = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'geonames.sqlite')
+DBNAMES_LINKS = [
+    ("http://download.geonames.org/export/dump/allCountries.zip",
+     "all countries combined in one file (HUGE! > 1.2 GB)"),
+    ("http://download.geonames.org/export/dump/cities500.zip",
+     "all cities with a population > 500 or seats of adm div down to PPLA4 (ca 185.000)"),
+    ("http://download.geonames.org/export/dump/cities1000.zip",
+     "all cities with a population > 1000 or seats of adm div down to PPLA3 (ca 130.000)"),
+    ("http://download.geonames.org/export/dump/cities5000.zip",
+     "all cities with a population > 5000 or PPLA (ca 50.000)"),
+    ("http://download.geonames.org/export/dump/cities15000.zip",
+     "all cities with a population > 15000 or capitals (ca 25.000)")
+    ]
 MIN_QUERY_DIST = 0.1 # Metres
+STATE_COLNAMES = ["AdCode", "State", "StateClean", "ID"]
 
 def import_dump(city_filename, admin_filename, country_filename, city_colnames, state_colnames, encoding='utf-8', delimiter='\t'):
-    MULTIPLIER = 1.4 # DB size versus original text file
+    MULTIPLIER = 1.4 # Estimated final DB size versus original input
     filesize = os.stat(city_filename).st_size/1048576 # In MB
     print("Initial filesize\t{} MB\nExpected database size\t{} MB\n".format(
                             round(filesize,2), round(filesize*MULTIPLIER,2)))
@@ -181,29 +193,18 @@ def reporthook(count, block_size, total_size):
                     (percent, progress_size / (1024 * 1024), speed, duration))
     sys.stdout.flush()
 
-def download_dataset(city_colnames, state_colnames, db_path):
-    options = [
-    ("http://download.geonames.org/export/dump/allCountries.zip",
-     "all countries combined in one file (HUGE! > 1.2 GB)"),
-    ("http://download.geonames.org/export/dump/cities500.zip",
-     "all cities with a population > 500 or seats of adm div down to PPLA4 (ca 185.000)"),
-    ("http://download.geonames.org/export/dump/cities1000.zip",
-     "all cities with a population > 1000 or seats of adm div down to PPLA3 (ca 130.000)"),
-    ("http://download.geonames.org/export/dump/cities5000.zip",
-     "all cities with a population > 5000 or PPLA (ca 50.000)"),
-    ("http://download.geonames.org/export/dump/cities15000.zip",
-     "all cities with a population > 15000 or capitals (ca 25.000)"),
-    ]
-
-    # Let user choose which file to download
-    for id, option in enumerate(options):
-        print("[{}] {}:\t{}".format(id, option[0].split('/')[-1], option[1]))
-    try:
-        choice = int(input("Choose which file to download: "))
-        if choice < 0 or choice >= len(options):
-            exit("Error: Choose between {} and {}".format(0, len(options)-1))
-    except ValueError:
-        exit('Error: Not an integer')
+# Fetches the dataset from the geonames repository and generates the db
+def download_dataset(city_colnames, state_colnames, db_path, options, choice=None):
+    # If not explicitly defined in function, let the user choose which file to download
+    if (choice is not None) or (choice < 1) or (choice > 4):
+        for id, option in enumerate(options):
+            print("[{}] {}:\t{}".format(id, option[0].split('/')[-1], option[1]))
+        try:
+            choice = int(input("Choose which file to download: "))
+            if choice < 0 or choice >= len(options):
+                exit("Error: Choose between {} and {}".format(0, len(options)-1))
+        except ValueError:
+            exit('Error: Not an integer')
 
     urllib.request.urlretrieve(options[choice][0], "rawdata.zip", reporthook)
     urllib.request.urlretrieve("http://download.geonames.org/export/dump/countryInfo.txt", "countryInfo.txt", reporthook)
@@ -235,21 +236,20 @@ def extract_zip(filename):
                 filename = fileName
     return filename
 
-def check_db_existance(dbfilename, columns_city, columns_state):
+def check_db_existance(dbfilename, columns_city, columns_state, options):
     if os.path.exists(dbfilename):
         return True
     else:
         print("GeoNames database", dbfilename, "does not exist. Choose an option")
         try:
-            download_dataset(columns_city, columns_state, dbfilename)
+            download_dataset(columns_city, columns_state, dbfilename, options)
         except:
             return False
         return True
 
-
 def main():
     dbpath = os.path.join(DBFILENAME)
-    if check_db_existance(dbpath, CITY_COLNAMES, STATE_COLNAMES):
+    if check_db_existance(dbpath, CITY_COLNAMES, STATE_COLNAMES, DBNAMES_LINKS):
         parser = argparse.ArgumentParser()
         parser.add_argument("--database", type=str, help="Set the file for database (default: {})".format(DBFILENAME), default=DBFILENAME)
         parser.add_argument("longitude", type=float, help="X coordinate (Longitude)")
@@ -259,7 +259,6 @@ def main():
         result = query_closest_city(args.database, args.latitude, args.longitude,
                                         query_buffer_distance=MIN_QUERY_DIST)
         print("{}, {}, {}".format(result[0], result[1], result[2]))
-
 
 if __name__ == "__main__":
     main()
