@@ -1,5 +1,10 @@
 #!/usr/bin/python3
 
+# closestgeoname <http://github.com/evanjt/closestgeoname>
+# A simple tool used to generate a local DB for reverse geocoding
+# License: MIT
+# Contact: Evan Thomas <evan@evanjt.com>
+
 import pandas as pd
 import sqlite3
 import os
