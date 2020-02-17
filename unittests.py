@@ -5,7 +5,7 @@ import closestgeoname
 import urllib
 import os
 import requests
-import closestgeoname.constants as constants
+import constants
 
 
 class TestSchema(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestSchema(unittest.TestCase):
 
     # Test download links available by checking their HTTP header status 200
     def test_download_links(self):
-        for download_link in closestgeoname.DBNAMES_LINKS:
+        for download_link in constants.DBNAMES_LINKS:
             link_request = requests.head(download_link[0])
             self.assertEqual(link_request.status_code, 200,
                              "Download link missing")
@@ -41,7 +41,7 @@ class TestDatabase(unittest.TestCase):
         self.min_query_dist = 0.1  # Metres
 
         # Download files
-        closestgeoname.fetch_data(closestgeoname.DBNAMES_LINKS,
+        closestgeoname.fetch_data(constants.DBNAMES_LINKS,
                                   1,
                                   self.zipname,
                                   self.admincodes,
@@ -64,8 +64,8 @@ class TestDatabase(unittest.TestCase):
                                             self.unzipped_filename,
                                             self.admincodes,
                                             self.countryinfo,
-                                            closestgeoname.CITY_COLNAMES,
-                                            closestgeoname.STATE_COLNAMES)
+                                            constants.CITY_COLNAMES,
+                                            constants.STATE_COLNAMES)
         self.assertTrue(os.path.exists(self.unzipped_filename))
         closestgeoname.generate_db(self.db_path, cities, states, countries)
         self.assertTrue(os.path.exists(self.db_path))

@@ -13,7 +13,7 @@ import urllib.request
 import time
 import sys
 from zipfile import ZipFile
-import closestgeoname.constants as constants
+import constants
 
 
 def import_dump(city_filename, admin_filename, country_filename,
@@ -50,6 +50,14 @@ def import_dump(city_filename, admin_filename, country_filename,
                       how='left')
 
     return cities, states, countries
+
+
+def fetch_data(options, choiceid, zipname, admincodes, countryinfo):
+    urllib.request.urlretrieve(options[choiceid][0], zipname, reporthook)
+    urllib.request.urlretrieve(constants.COUNTRYINFO,
+                               "countryInfo.txt", reporthook)
+    urllib.request.urlretrieve(constants.ADMINCODES,
+                               "admin1CodesASCII.txt", reporthook)
 
 
 def query_db_size(db_path):
@@ -175,16 +183,6 @@ def reporthook(count, block_size, total_size):
     sys.stdout.write("\r...%d%%, %d MB, %d KB/s, %d seconds passed" %
                      (percent, progress_size / (1024 * 1024), speed, duration))
     sys.stdout.flush()
-
-
-def fetch_data(options, choiceid, zipname, admincodes, countryinfo):
-    urllib.request.urlretrieve(options[choiceid][0], zipname, reporthook)
-    urllib.request.urlretrieve(
-        constants.COUNTRYINFO,
-        "countryInfo.txt", reporthook)
-    urllib.request.urlretrieve(
-        constants.ADMINCODES,
-        "admin1CodesASCII.txt", reporthook)
 
 
 # Fetches the dataset from the geonames repository and generates the db
